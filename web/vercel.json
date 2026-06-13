@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    { "src": "api/*.py", "use": "@vercel/python" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/status", "dest": "/api/status.py" },
+    { "src": "/api/trigger", "dest": "/api/trigger.py" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
