@@ -1,4 +1,4 @@
-# macro-updater
+# macro-updater for turco
 
 Keeps the four data sheets in **Macro.xlsx** (hosted on OneDrive/SharePoint) up
 to date automatically, and gives non-technical users a simple dashboard to watch
