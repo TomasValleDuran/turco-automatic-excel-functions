@@ -21,8 +21,10 @@ value passes a sanity check (`validate.py`) before being saved.
 - **GitHub Actions** (free) is the always-on scheduler: `daily.yml` and
   `monthly.yml`. Both also accept manual `workflow_dispatch`.
 - After each run, `status.json` is committed to the repo.
-- **Streamlit Community Cloud** (free) hosts `dashboard/app.py`, which reads
-  `status.json` and exposes **"Run now"** buttons.
+- **Vercel** (free Hobby plan) hosts the dashboard in `web/`: a static
+  `index.html` + two Python serverless functions (`web/api/status.py`,
+  `web/api/trigger.py`) that read `status.json` and fire the workflows. The
+  GitHub PAT stays server-side as a Vercel env var, never in the browser.
 
 ## One-time setup
 
@@ -45,12 +47,16 @@ Record `GRAPH_DRIVE_ID` and `GRAPH_ITEM_ID`.
 In the repo: Settings → Secrets and variables → Actions → add
 `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `GRAPH_DRIVE_ID`, `GRAPH_ITEM_ID`.
 
-### 4. Dashboard (Streamlit Community Cloud)
-Deploy `dashboard/app.py`. In app **Secrets** add:
-```toml
-github_repo  = "your-org/macro-updater"
-github_token = "ghp_…"   # fine-grained PAT, Actions: write
-```
+### 4. Dashboard (Vercel — free Hobby plan)
+1. Create a **fine-grained GitHub PAT** scoped to this repo with
+   **Actions: Read and write** + **Contents: Read**.
+2. On Vercel: **Add New → Project → import this repo**.
+3. Set **Root Directory = `web`** (Settings → General, during import).
+4. Add Environment Variables:
+   - `GH_REPO`  = `owner/turco-automatic-excel-functions`
+   - `GH_TOKEN` = the PAT from step 1
+5. Deploy. The page auto-detects `web/api/*.py` as serverless functions; no
+   build step or extra config needed (stdlib only).
 
 ## Local testing
 

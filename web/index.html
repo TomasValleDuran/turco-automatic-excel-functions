@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Actualización de Macro.xlsx</title>
+<style>
+  :root { --bg:#0f1116; --card:#191c24; --line:#2a2f3a; --txt:#e8eaf0;
+          --muted:#9aa3b2; --ok:#2ecc71; --warn:#f1c40f; --err:#e74c3c;
+          --accent:#4c8dff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--txt); }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 28px; }
+  .card { background:var(--card); border:1px solid var(--line);
+          border-radius:14px; padding:18px 20px; margin-bottom:14px; }
+  .row { display:flex; align-items:center; gap:10px; }
+  .name { font-weight:600; font-size:17px; flex:1; }
+  .dot { width:11px; height:11px; border-radius:50%; background:#555; }
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
+          margin-top:14px; }
+  .metric .k { color:var(--muted); font-size:12px; text-transform:uppercase;
+               letter-spacing:.04em; }
+  .metric .v { font-size:20px; font-weight:600; margin-top:2px; }
+  .msg { margin-top:12px; color:var(--err); font-size:14px;
+         background:#2a1a1a; border:1px solid #5a2a2a; padding:8px 10px;
+         border-radius:8px; }
+  .actions { display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; }
+  button { flex:1; min-width:200px; cursor:pointer; border:none;
+           border-radius:10px; padding:14px 16px; font-size:15px;
+           font-weight:600; color:#fff; background:var(--accent);
+           transition:opacity .15s; }
+  button.alt { background:#3a3f4b; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .foot { color:var(--muted); font-size:13px; margin-top:22px; text-align:center; }
+  .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%);
+           background:#222630; border:1px solid var(--line); padding:12px 18px;
+           border-radius:10px; opacity:0; transition:opacity .2s; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📈 Actualización de Macro.xlsx</h1>
+  <p class="sub">Estado de las series macroeconómicas que se cargan automáticamente.</p>
+  <div id="cards"></div>
+  <div class="actions">
+    <button id="bd" onclick="run('daily', this)">🔄 Actualizar diario ahora</button>
+    <button id="bm" class="alt" onclick="run('monthly', this)">🗓️ Actualizar mensual ahora</button>
+  </div>
+  <p class="foot">Diario: 08:00 (Lun–Vie) · Mensual: día 20, 08:00 · hora de Argentina.
+     Los datos del día anterior quedan cargados antes de que llegues al trabajo.</p>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const SOURCES = ["TC diario OFICIAL","TC diario MEP","ARG IPC","USA CPI"];
+
+function ago(iso){
+  if(!iso) return "nunca";
+  const h = Math.floor((Date.now() - new Date(iso))/3.6e6);
+  return h < 1 ? "hace <1 h" : `hace ${h} h`;
+}
+function toast(t){
+  const el=document.getElementById('toast'); el.textContent=t;
+  el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000);
+}
+async function load(){
+  let data={};
+  try { data = await (await fetch('/api/status',{cache:'no-store'})).json(); }
+  catch(e){}
+  const box=document.getElementById('cards'); box.innerHTML='';
+  for(const name of SOURCES){
+    const s=data[name]||{};
+    const cls = s.ok===true?'ok':(s.ok===false?'warn':'');
+    const err = s.ok===false ? `<div class="msg">${s.message||'Error'}</div>` : '';
+    box.insertAdjacentHTML('beforeend', `
+      <div class="card">
+        <div class="row"><span class="dot ${cls}"></span>
+          <span class="name">${name}</span></div>
+        <div class="grid">
+          <div class="metric"><div class="k">Último valor</div>
+            <div class="v">${s.last_value ?? '—'}</div></div>
+          <div class="metric"><div class="k">Última corrida</div>
+            <div class="v">${ago(s.last_run)}</div></div>
+          <div class="metric"><div class="k">Filas agregadas</div>
+            <div class="v">${s.added ?? 0}</div></div>
+        </div>${err}
+      </div>`);
+  }
+}
+async function run(kind, btn){
+  btn.disabled=true;
+  try{
+    const r = await (await fetch('/api/trigger?type='+kind,{method:'POST'})).json();
+    toast(r.ok ? '✅ Actualización lanzada' : '⚠️ No se pudo lanzar');
+  }catch(e){ toast('⚠️ Error de red'); }
+  setTimeout(()=>{btn.disabled=false; load();}, 4000);
+}
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>

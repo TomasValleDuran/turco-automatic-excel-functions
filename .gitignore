@@ -3,4 +3,5 @@ __pycache__/
 .venv/
 *.xlsx
 .DS_Store
-.streamlit/secrets.toml
+.vercel
+.env*.local

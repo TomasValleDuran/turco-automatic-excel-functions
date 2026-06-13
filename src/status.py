@@ -1,7 +1,7 @@
 """Per-source run status, persisted as JSON for the dashboard to read.
 
 The file is committed back to the repo by the GitHub Actions workflow so the
-Streamlit dashboard can show freshness and last error without any database.
+Vercel dashboard can show freshness and last error without any database.
 """
 from __future__ import annotations
 
