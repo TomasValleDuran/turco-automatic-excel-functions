@@ -1,0 +1,37 @@
+name: Monthly inflation update
+
+on:
+  schedule:
+    # 08:00 Argentina (UTC-3) = 11:00 UTC, on the 20th
+    - cron: "0 11 20 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Update ARG IPC + USA CPI
+        working-directory: src
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_ITEM_ID: ${{ secrets.GRAPH_ITEM_ID }}
+          STATUS_PATH: ${{ github.workspace }}/status.json
+        run: python -m update_monthly
+      - name: Commit status
+        run: |
+          git config user.name "macro-updater"
+          git config user.email "actions@github.com"
+          git add status.json
+          git commit -m "monthly run $(date -u +%FT%TZ)" || echo "no changes"
+          git push || echo "nothing to push"
