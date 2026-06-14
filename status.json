@@ -1,0 +1,14 @@
+{
+  "TC diario OFICIAL": {
+    "last_run": "2026-06-14T16:22:03+00:00",
+    "ok": false,
+    "message": "Your given address (https://login.microsoftonline.com/) should consist of an https url with hostname and a minimum of one segment in a path: e.g. https://login.microsoftonline.com/{tenant} or https://{tenant_name}.ciamlogin.com/{tenant} or https://{tenant_name}.b2clogin.com/{tenant_name}.onmicrosoft.com/policy",
+    "added": 0
+  },
+  "TC diario MEP": {
+    "last_run": "2026-06-14T16:22:05+00:00",
+    "ok": false,
+    "message": "Your given address (https://login.microsoftonline.com/) should consist of an https url with hostname and a minimum of one segment in a path: e.g. https://login.microsoftonline.com/{tenant} or https://{tenant_name}.ciamlogin.com/{tenant} or https://{tenant_name}.b2clogin.com/{tenant_name}.onmicrosoft.com/policy",
+    "added": 0
+  }
+}
