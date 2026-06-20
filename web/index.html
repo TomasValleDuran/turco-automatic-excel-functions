@@ -26,31 +26,40 @@
   .ipc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
               gap:10px; margin:12px 0; }
   .ipc-grid .v { font-size:16px; font-weight:600; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   button { cursor:pointer; border:none; border-radius:9px; padding:9px 14px;
            font-size:14px; font-weight:600; color:#fff; background:var(--accent); }
   button.alt { background:#3a3f4b; }
   button.copy { background:#2a3142; border:1px solid var(--line); }
   button.copy.done { background:var(--ok); color:#06240f; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--muted); }
   button:disabled { opacity:.55; cursor:wait; }
   .err { color:var(--err); font-size:14px; }
   .hint { color:var(--muted); font-size:12px; margin-top:6px; }
   .barbtn { width:100%; padding:13px; margin-top:4px; }
   .skel { color:var(--muted); }
+  .stamp { color:var(--muted); font-size:12px; margin:0 0 10px; }
+  table.hist { width:100%; border-collapse:collapse; font-size:13px; }
+  table.hist th, table.hist td { text-align:right; padding:6px 8px;
+       border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  table.hist th { color:var(--muted); font-weight:600; text-transform:uppercase;
+       font-size:11px; letter-spacing:.04em; }
+  table.hist td:first-child, table.hist th:first-child { text-align:left; }
+  details { margin-top:4px; }
+  summary { cursor:pointer; color:var(--muted); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>📋 Valores para Macro.xlsx</h1>
-  <p class="sub">Tomá el último valor publicado y copialo directo a la planilla.
+  <p class="sub">Valores actualizados automáticamente todos los días.
      El botón <b>Copiar</b> deja el dato listo para pegar en la fila correspondiente.</p>
 
   <h2>Diario · TC OFICIAL y MEP</h2>
   <div id="daily"><div class="card skel">Cargando…</div></div>
 
   <h2>Mensual · ARG IPC y USA CPI</h2>
-  <div id="monthly"></div>
-  <button id="loadMonthly" class="alt barbtn" onclick="loadMonthly()">
-    Cargar valores mensuales (puede tardar ~10–30 s)</button>
+  <div id="monthly"><div class="card skel">Cargando…</div></div>
 </div>
 
 <script>
@@ -62,65 +71,132 @@ function copy(text, btn){
 }
 function fmt(n){ return typeof n==="number" ? n.toLocaleString("es-AR",{maximumFractionDigits:4}) : n; }
 function cbtn(text){ return `<button class="copy" onclick='copy(${JSON.stringify(text)}, this)'>Copiar</button>`; }
+function whenLabel(iso){ if(!iso) return ""; const d=new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString("es-AR",{dateStyle:"medium",timeStyle:"short"}); }
 
-async function loadDaily(){
-  const box=document.getElementById("daily");
-  let d={}; try{ d=await (await fetch("/api/daily",{cache:"no-store"})).json(); }
-  catch(e){ box.innerHTML='<div class="card err">No se pudo conectar.</div>'; return; }
-  let html="";
-  const o=d.oficial||{};
-  if(o.error){ html+=`<div class="card"><div class="name">TC diario OFICIAL</div><div class="err">${o.error}</div></div>`; }
-  else { html+=`<div class="card">
-      <div class="top"><span class="name">TC diario OFICIAL</span><span class="date">${o.date}</span></div>
+// ---- Diario ---------------------------------------------------------------
+function oficialCard(o){
+  if(!o || o.error || o.compra==null) return `<div class="card">
+      <div class="name">TC diario OFICIAL</div>
+      <div class="err">Sin valor disponible${o&&o.error?": "+o.error:""}</div></div>`;
+  return `<div class="card">
+      <div class="top"><span class="name">TC diario OFICIAL</span><span class="date">${o.date||""}</span></div>
       <div class="vals">
         <div class="val"><div class="k">Compra</div><div class="v">${fmt(o.compra)}</div></div>
         <div class="val"><div class="k">Venta</div><div class="v">${fmt(o.venta)}</div></div>
       </div>
-      ${cbtn(o.compra+"\t"+o.venta)}
+      <div class="actions">${cbtn(o.compra+"\t"+o.venta)}</div>
       <div class="hint">Pega en las columnas Compra y Venta (dos celdas).</div>
-    </div>`; }
-  const m=d.mep||{};
-  if(m.error){ html+=`<div class="card"><div class="name">TC diario MEP</div><div class="err">${m.error}</div></div>`; }
-  else { html+=`<div class="card">
-      <div class="top"><span class="name">TC diario MEP</span><span class="date">${m.date}</span></div>
+    </div>`;
+}
+function mepCard(m){
+  if(!m || m.error || m.value==null) return `<div class="card">
+      <div class="name">TC diario MEP</div>
+      <div class="err">Sin valor disponible${m&&m.error?": "+m.error:""}</div></div>`;
+  return `<div class="card">
+      <div class="top"><span class="name">TC diario MEP</span><span class="date">${m.date||""}</span></div>
       <div class="vals"><div class="val"><div class="k">Referencia</div><div class="v">${fmt(m.value)}</div></div></div>
-      ${cbtn(String(m.value))}
-    </div>`; }
-  box.innerHTML=html;
+      <div class="actions">${cbtn(String(m.value))}</div>
+    </div>`;
+}
+function histTable(history){
+  const rows=history.slice(0,7).map(e=>{
+    const o=e.oficial||{}, m=e.mep||{};
+    return `<tr><td>${e.run_date}</td>
+      <td>${o.compra!=null?fmt(o.compra):"—"}</td>
+      <td>${o.venta!=null?fmt(o.venta):"—"}</td>
+      <td>${m.value!=null?fmt(m.value):"—"}</td></tr>`;
+  }).join("");
+  return `<details><summary>Ver historial (últimos días)</summary>
+    <div class="card" style="margin-top:8px"><table class="hist">
+      <tr><th>Día</th><th>Of. compra</th><th>Of. venta</th><th>MEP</th></tr>
+      ${rows}
+    </table></div></details>`;
+}
+function renderDaily(box, latest, meta, history){
+  const o=latest.oficial||{}, m=latest.mep||{};
+  box.innerHTML =
+    (meta?`<p class="stamp">Actualizado: ${whenLabel(meta)}</p>`:"") +
+    oficialCard(o) + mepCard(m) +
+    (history&&history.length>1?histTable(history):"") +
+    `<div class="actions" style="margin-top:6px">
+       <button class="ghost" id="liveDaily" onclick="liveDaily()">↻ Refrescar en vivo</button></div>`;
+}
+async function loadDaily(){
+  const box=document.getElementById("daily");
+  let d=null;
+  try{ d=await (await fetch("/data/daily.json",{cache:"no-store"})).json(); }catch(e){}
+  if(d && d.history && d.history.length){
+    renderDaily(box, d.history[0], d.updated_at, d.history);
+  } else {
+    // Sin JSON guardado todavía: caemos al pedido en vivo.
+    liveDaily(box);
+  }
+}
+async function liveDaily(box){
+  box=box||document.getElementById("daily");
+  const btn=document.getElementById("liveDaily"); if(btn){btn.disabled=true; btn.textContent="Consultando…";}
+  let d={}; try{ d=await (await fetch("/api/daily",{cache:"no-store"})).json(); }
+  catch(e){ if(btn){btn.disabled=false; btn.textContent="↻ Reintentar";} return; }
+  renderDaily(box, {oficial:d.oficial, mep:d.mep}, null, null);
+  const note=document.createElement("p"); note.className="stamp";
+  note.textContent="Consulta en vivo · "+whenLabel(new Date().toISOString());
+  box.prepend(note);
 }
 
-async function loadMonthly(){
-  const btn=document.getElementById("loadMonthly"); btn.disabled=true;
-  const box=document.getElementById("monthly");
-  box.innerHTML='<div class="card skel">Descargando datos del INDEC…</div>';
-  let d={}; try{ d=await (await fetch("/api/monthly",{cache:"no-store"})).json(); }
-  catch(e){ box.innerHTML='<div class="card err">No se pudo conectar (puede ser timeout del INDEC). Reintentá.</div>'; btn.disabled=false; return; }
-  let html="";
-  const c=d.cpi||{};
-  if(c.error){ html+=`<div class="card"><div class="name">USA CPI</div><div class="err">${c.error}</div></div>`; }
-  else { html+=`<div class="card">
+// ---- Mensual --------------------------------------------------------------
+function cpiCard(c){
+  if(!c || c.error || c.value==null) return `<div class="card">
+      <div class="name">USA CPI</div>
+      <div class="err">Sin valor disponible${c&&c.error?": "+c.error:""}</div></div>`;
+  return `<div class="card">
       <div class="top"><span class="name">USA CPI</span><span class="date">${c.year}-${String(c.month).padStart(2,"0")}</span></div>
       <div class="vals"><div class="val"><div class="k">Índice</div><div class="v">${fmt(c.value)}</div></div></div>
-      ${cbtn(String(c.value))}
+      <div class="actions">${cbtn(String(c.value))}</div>
       <div class="hint">Año ${c.year}, mes ${c.month} — pega en la celda correspondiente.</div>
-    </div>`; }
-  const i=d.ipc||{};
-  if(i.error){ html+=`<div class="card"><div class="name">ARG IPC</div><div class="err">${i.error}</div></div>`; }
-  else {
-    const cells=i.columnas.map((col,idx)=>`<div class="val"><div class="k">${col}</div><div class="v">${fmt(i.valores[idx])}</div></div>`).join("");
-    const rowTab=[i.periodo,...i.valores].join("\t");
-    html+=`<div class="card">
+    </div>`;
+}
+function ipcCard(i){
+  if(!i || i.error || !i.valores) return `<div class="card">
+      <div class="name">ARG IPC</div>
+      <div class="err">Sin valor disponible${i&&i.error?": "+i.error:""}</div></div>`;
+  const cells=i.columnas.map((col,idx)=>`<div class="val"><div class="k">${col}</div><div class="v">${fmt(i.valores[idx])}</div></div>`).join("");
+  const rowTab=[i.periodo,...i.valores].join("\t");
+  return `<div class="card">
       <div class="top"><span class="name">ARG IPC</span><span class="date">${i.periodo}</span></div>
       <div class="ipc-grid">${cells}</div>
-      ${cbtn(rowTab)}
+      <div class="actions">${cbtn(rowTab)}</div>
       <div class="hint">Copia la fila completa (Período + 7 regiones) y pégala en una fila nueva.</div>
     </div>`;
-  }
-  box.innerHTML=html; btn.disabled=false;
-  btn.textContent="Recargar valores mensuales";
+}
+function renderMonthly(box, d, meta){
+  box.innerHTML =
+    (meta?`<p class="stamp">Actualizado: ${whenLabel(meta)}</p>`:"") +
+    cpiCard(d.cpi) + ipcCard(d.ipc) +
+    `<div class="actions" style="margin-top:6px">
+       <button class="ghost" id="liveMonthly" onclick="liveMonthly()">↻ Refrescar en vivo (~10–30 s)</button></div>`;
+}
+async function loadMonthly(){
+  const box=document.getElementById("monthly");
+  let d=null;
+  try{ d=await (await fetch("/data/monthly.json",{cache:"no-store"})).json(); }catch(e){}
+  if(d && (d.cpi || d.ipc)){ renderMonthly(box, d, d.updated_at); }
+  else { box.innerHTML='<div class="card skel">Sin datos guardados todavía.</div>'+
+         `<div class="actions"><button class="ghost" id="liveMonthly" onclick="liveMonthly()">↻ Consultar en vivo (~10–30 s)</button></div>`; }
+}
+async function liveMonthly(){
+  const box=document.getElementById("monthly");
+  const btn=document.getElementById("liveMonthly"); if(btn){btn.disabled=true; btn.textContent="Descargando del INDEC…";}
+  let d={}; try{ d=await (await fetch("/api/monthly",{cache:"no-store"})).json(); }
+  catch(e){ if(btn){btn.disabled=false; btn.textContent="↻ Reintentar";} return; }
+  renderMonthly(box, d, null);
+  const note=document.createElement("p"); note.className="stamp";
+  note.textContent="Consulta en vivo · "+whenLabel(new Date().toISOString());
+  box.prepend(note);
 }
 
 loadDaily();
+loadMonthly();
 </script>
 </body>
 </html>

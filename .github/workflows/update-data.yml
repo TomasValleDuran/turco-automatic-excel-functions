@@ -1,0 +1,53 @@
+name: Actualizar valores macro
+
+# Corre 1 vez al día (08:00 AR = 11:00 UTC). El script reintenta internamente
+# cada 15 min, hasta 5 veces, si una fuente falla (p. ej. el error 104 del BNA).
+# También se puede disparar a mano desde la pestaña Actions ("Run workflow").
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      which:
+        description: "Qué actualizar"
+        type: choice
+        default: all
+        options: [all, daily, monthly]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    # Holgado por si reintenta varias veces con esperas de 15 min.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r web/requirements.txt
+
+      - name: Actualizar JSON de valores
+        run: python scripts/update_data.py "${{ github.event.inputs.which || 'all' }}"
+
+      - name: Commit si cambió algo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/data/daily.json web/data/monthly.json
+          if git diff --staged --quiet; then
+            echo "Sin cambios en los valores."
+          else
+            git commit -m "chore(data): actualizar valores macro [skip ci]"
+            git push
+          fi

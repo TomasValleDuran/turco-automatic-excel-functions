@@ -16,11 +16,24 @@ Each card has a **Copiar** button that puts the value(s) on the clipboard as
 tab-separated text, so pasting drops them straight into the right cells/row.
 
 ## How it works (no secrets, no M365)
-- Static `web/index.html` + two Python serverless functions on **Vercel**:
+- **Auto-update (default):** a GitHub Action (`.github/workflows/update-data.yml`)
+  runs `scripts/update_data.py` once a day, fetches every source and writes the
+  results to `web/data/daily.json` + `web/data/monthly.json`, then commits them.
+  Vercel serves those JSON files statically and `index.html` just displays them —
+  so the page no longer depends on the client hitting a flaky upstream.
+  - If a source fails (e.g. BNA's `Connection reset by peer` / error **104**),
+    the script retries every 15 min, up to 5 times, and **never overwrites a good
+    stored value with an error** — the page keeps showing the last valid number.
+  - `daily.json` keeps a per-day **history** (today, yesterday, …); the page shows
+    the latest plus a "Ver historial" table.
+- **Manual fetch is still available:**
+  - each card has a *↻ Refrescar en vivo* button that calls the live API;
+  - the Action can be run on demand from GitHub → Actions → *Run workflow*.
+- Live Python serverless functions on **Vercel** (used by the manual buttons):
   - `web/api/daily.py`   → BNA + MEP (fast)
-  - `web/api/monthly.py` → CPI + IPC (IPC downloads ~11 MB from INDEC, so it runs
-    only when you press the button; `maxDuration` is raised in `vercel.json`)
-- No environment variables or credentials required.
+  - `web/api/monthly.py` → CPI + IPC (IPC downloads ~11 MB from INDEC; slow)
+- No environment variables or credentials required (the Action commits with the
+  built-in `GITHUB_TOKEN`).
 
 ## Deploy on Vercel
 1. Import the repo, set **Root Directory = `web`**.
@@ -29,9 +42,8 @@ tab-separated text, so pasting drops them straight into the right cells/row.
 
 ## Local check
 ```bash
-cd web/api
-python3 -c "import importlib.util as u; s=u.spec_from_file_location('m','daily.py'); \
-m=u.module_from_spec(s); s.loader.exec_module(m); print(m.fetch_oficial(), m.fetch_mep())"
+# regenerate the stored JSON locally (same code the Action runs)
+python3 scripts/update_data.py daily     # or: monthly / all
 ```
 
 ## Full automation
