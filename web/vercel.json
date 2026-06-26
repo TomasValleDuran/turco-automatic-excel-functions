@@ -1,14 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
-    { "src": "api/*.py", "use": "@vercel/python", "config": { "maxDuration": 60 } },
-    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "api/*.py", "use": "@vercel/python", "config": { "maxDuration": 60, "includeFiles": "data/**" } },
     { "src": "data/*.json", "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/", "dest": "/api/data.py" },
+    { "src": "/api/data", "dest": "/api/data.py" },
     { "src": "/api/daily", "dest": "/api/daily.py" },
     { "src": "/api/monthly", "dest": "/api/monthly.py" },
     { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/api/data.py" }
   ]
 }
